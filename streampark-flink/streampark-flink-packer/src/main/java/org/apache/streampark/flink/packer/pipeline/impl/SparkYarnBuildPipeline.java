@@ -119,8 +119,12 @@ public class SparkYarnBuildPipeline extends BuildPipeline {
                         Workspace.remote().APP_UPLOADS() + "/" + originFile.getName();
                 if (fsOperator.exists(uploadFile)) {
                     try (FileInputStream in = new FileInputStream(originFile)) {
+<<<<<<< HEAD
                         @SuppressWarnings("java:S4790")
                         String localMd5 = DigestUtils.md5Hex(in);
+=======
+                        String localMd5 = DigestUtils.md5Hex(in); // NOSONAR java:S4790 - upload integrity check only
+>>>>>>> feature/remove-scala
                         if (!localMd5.equals(fsOperator.fileMd5(uploadFile))) {
                             fsOperator.upload(originFile.getAbsolutePath(), uploadFile);
                         }
