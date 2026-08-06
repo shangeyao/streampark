@@ -19,7 +19,6 @@ package org.apache.streampark.console.core.aspect;
 
 import org.apache.streampark.common.util.DateUtils;
 import org.apache.streampark.common.util.ReflectUtils;
-import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.annotation.OpenAPI;
 import org.apache.streampark.console.system.entity.AccessToken;
@@ -48,15 +47,13 @@ import java.util.TimeZone;
 @Aspect
 public class OpenAPIAspect {
 
-    @Pointcut("execution(public"
-        + " org.apache.streampark.console.base.domain.RestResponse"
-        + " org.apache.streampark.console.core.controller.*.*(..))")
+    @Pointcut("@annotation(org.apache.streampark.console.core.annotation.OpenAPI)")
     public void openAPIPointcut() {
     }
 
     @SuppressWarnings("checkstyle:SimplifyBooleanExpression")
     @Around(value = "openAPIPointcut()")
-    public RestResponse openAPI(ProceedingJoinPoint joinPoint) throws Throwable {
+    public Object openAPI(ProceedingJoinPoint joinPoint) throws Throwable {
         MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
         log.debug("restResponse aspect, method:{}", methodSignature.getName());
         Boolean isApi = (Boolean) SecurityUtils.getSubject().getSession().getAttribute(AccessToken.IS_API_TOKEN);
@@ -65,40 +62,58 @@ public class OpenAPIAspect {
                 ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
             OpenAPI openAPI = methodSignature.getMethod().getAnnotation(OpenAPI.class);
             if (openAPI == null) {
-                String url = request.getRequestURI();
-                throw new ApiAlertException("openapi unsupported: " + url);
-            } else {
-                Object[] objects = joinPoint.getArgs();
-                for (OpenAPI.Param param : openAPI.param()) {
-                    String bingFor = param.bindFor();
-                    if (StringUtils.isNotBlank(bingFor)) {
-                        String name = param.name();
-                        for (Object args : objects) {
-                            Field bindForField = ReflectUtils.getField(args.getClass(), bingFor);
-                            if (bindForField != null) {
-                                Object value = request.getParameter(name);
-                                bindForField.setAccessible(true);
-                                if (value != null) {
-                                    if (param.type().equals(String.class)) {
-                                        bindForField.set(args, value.toString());
-                                    } else if (param.type().equals(Boolean.class)
-                                        || param.type().equals(boolean.class)) {
-                                        bindForField.set(args, Boolean.parseBoolean(value.toString()));
-                                    } else if (param.type().equals(Integer.class) || param.type().equals(int.class)) {
-                                        bindForField.set(args, Integer.parseInt(value.toString()));
-                                    } else if (param.type().equals(Long.class) || param.type().equals(long.class)) {
-                                        bindForField.set(args, Long.parseLong(value.toString()));
-                                    } else if (param.type().equals(Date.class)) {
-                                        bindForField.set(args, DateUtils.parse(value.toString(), DateUtils.fullFormat(),
-                                            TimeZone.getDefault()));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                throw new ApiAlertException("openapi unsupported: " + request.getRequestURI());
             }
+            bindOpenApiParameters(request, openAPI, joinPoint.getArgs());
         }
-        return (RestResponse) joinPoint.proceed();
+        return joinPoint.proceed();
+    }
+
+    private void bindOpenApiParameters(HttpServletRequest request, OpenAPI openAPI,
+                                       Object[] args) throws Exception {
+        for (OpenAPI.Param param : openAPI.param()) {
+            bindOpenApiParameter(request, param, args);
+        }
+    }
+
+    private void bindOpenApiParameter(HttpServletRequest request, OpenAPI.Param param,
+                                      Object[] args) throws Exception {
+        String bindFor = param.bindFor();
+        if (StringUtils.isBlank(bindFor)) {
+            return;
+        }
+        String name = param.name();
+        for (Object arg : args) {
+            Field bindForField = ReflectUtils.getField(arg.getClass(), bindFor);
+            if (bindForField == null) {
+                continue;
+            }
+            String value = request.getParameter(name);
+            if (value == null) {
+                continue;
+            }
+            bindForField.setAccessible(true);
+            bindForField.set(arg, convertParameterValue(param, value));
+        }
+    }
+
+    private Object convertParameterValue(OpenAPI.Param param, String value) throws Exception {
+        Class<?> type = param.type();
+        if (type.equals(String.class)) {
+            return value;
+        }
+        if (type.equals(Boolean.class) || type.equals(boolean.class)) {
+            return Boolean.parseBoolean(value);
+        }
+        if (type.equals(Integer.class) || type.equals(int.class)) {
+            return Integer.parseInt(value);
+        }
+        if (type.equals(Long.class) || type.equals(long.class)) {
+            return Long.parseLong(value);
+        }
+        if (type.equals(Date.class)) {
+            return DateUtils.parse(value, DateUtils.fullFormat(), TimeZone.getDefault());
+        }
+        return value;
     }
 }

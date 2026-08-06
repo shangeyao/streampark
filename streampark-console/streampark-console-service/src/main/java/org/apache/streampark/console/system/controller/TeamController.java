@@ -18,8 +18,16 @@
 package org.apache.streampark.console.system.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.system.assembler.TeamAssembler;
 import org.apache.streampark.console.system.entity.Team;
+import org.apache.streampark.console.system.request.team.TeamCheckNameRequest;
+import org.apache.streampark.console.system.request.team.TeamCreateRequest;
+import org.apache.streampark.console.system.request.team.TeamDeleteRequest;
+import org.apache.streampark.console.system.request.team.TeamListQueryRequest;
+import org.apache.streampark.console.system.request.team.TeamUpdateRequest;
+import org.apache.streampark.console.system.response.team.TeamResponse;
 import org.apache.streampark.console.system.service.TeamService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -35,7 +43,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
 
 @Slf4j
 @Validated
@@ -47,35 +54,35 @@ public class TeamController {
     private TeamService teamService;
 
     @PostMapping("list")
-    public RestResponse teamList(RestRequest restRequest, Team team) {
-        IPage<Team> teamList = teamService.getPage(team, restRequest);
-        return RestResponse.success(teamList);
+    public RestResponseBody<IPage<TeamResponse>> teamList(RestRequest restRequest, TeamListQueryRequest query) {
+        IPage<Team> teamList = teamService.getPage(TeamAssembler.toEntity(query), restRequest);
+        return RestResponseBody.success(TeamAssembler.toPageResponse(teamList));
     }
 
     @PostMapping("check/name")
-    public RestResponse checkTeamName(@NotBlank(message = "{required}") String teamName) {
-        Team result = this.teamService.getByName(teamName);
-        return RestResponse.success(result == null);
+    public RestResponseBody<Boolean> checkTeamName(@Valid TeamCheckNameRequest request) {
+        Team result = this.teamService.getByName(request.getTeamName());
+        return RestResponseBody.success(result == null);
     }
 
     @PostMapping("post")
     @RequiresPermissions("team:add")
-    public RestResponse addTeam(@Valid Team team) {
-        this.teamService.createTeam(team);
-        return RestResponse.success();
+    public RestResponseBody<Void> addTeam(@Valid @FormOrJson TeamCreateRequest request) {
+        this.teamService.createTeam(TeamAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @DeleteMapping("delete")
     @RequiresPermissions("team:delete")
-    public RestResponse deleteTeam(Team team) {
-        this.teamService.removeById(team.getId());
-        return RestResponse.success();
+    public RestResponseBody<Void> deleteTeam(@Valid @FormOrJson TeamDeleteRequest request) {
+        this.teamService.removeById(request.getId());
+        return RestResponseBody.success();
     }
 
     @PutMapping("update")
     @RequiresPermissions("team:update")
-    public RestResponse updateTeam(Team team) {
-        this.teamService.updateTeam(team);
-        return RestResponse.success();
+    public RestResponseBody<Void> updateTeam(@Valid @FormOrJson TeamUpdateRequest request) {
+        this.teamService.updateTeam(TeamAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 }

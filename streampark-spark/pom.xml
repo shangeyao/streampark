@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.apache.streampark</groupId>
         <artifactId>streampark</artifactId>
-        <version>2.2.0-SNAPSHOT</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>streampark-spark</artifactId>
@@ -30,7 +30,6 @@
 
     <modules>
         <module>streampark-spark-core</module>
-        <module>streampark-spark-connector</module>
         <module>streampark-spark-client</module>
         <module>streampark-spark-sqlclient</module>
     </modules>
@@ -39,8 +38,18 @@
 
         <dependency>
             <groupId>org.apache.streampark</groupId>
-            <artifactId>streampark-common_2.12</artifactId>
+            <artifactId>streampark-common</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-common-scala-bridge_${scala.binary.version}</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.beachape</groupId>
+            <artifactId>enumeratum_${scala.binary.version}</artifactId>
         </dependency>
 
         <dependency>

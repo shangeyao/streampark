@@ -18,11 +18,18 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.common.util.HadoopUtils;
-import org.apache.streampark.console.base.domain.RestResponse;
-import org.apache.streampark.console.core.bean.DockerConfig;
-import org.apache.streampark.console.core.bean.ResponseResult;
-import org.apache.streampark.console.core.bean.SenderEmail;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.SettingAssembler;
 import org.apache.streampark.console.core.entity.Setting;
+import org.apache.streampark.console.core.request.setting.SettingDockerRequest;
+import org.apache.streampark.console.core.request.setting.SettingEmailRequest;
+import org.apache.streampark.console.core.request.setting.SettingGetRequest;
+import org.apache.streampark.console.core.request.setting.SettingUpdateRequest;
+import org.apache.streampark.console.core.response.setting.SettingCheckResponse;
+import org.apache.streampark.console.core.response.setting.SettingDockerResponse;
+import org.apache.streampark.console.core.response.setting.SettingEmailResponse;
+import org.apache.streampark.console.core.response.setting.SettingResponse;
 import org.apache.streampark.console.core.service.SettingService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -34,6 +41,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,70 +58,72 @@ public class SettingController {
 
     @PostMapping("all")
     @RequiresPermissions("setting:view")
-    public RestResponse all() {
-        LambdaQueryWrapper<Setting> query = new LambdaQueryWrapper<Setting>().orderByAsc(Setting::getOrderNum);
+    public RestResponseBody<List<SettingResponse>> all() {
+        LambdaQueryWrapper<Setting> query =
+            new LambdaQueryWrapper<Setting>().orderByAsc(Setting::getOrderNum);
         List<Setting> setting = settingService.list(query);
-        return RestResponse.success(setting);
+        return RestResponseBody.success(SettingAssembler.toListResponse(setting));
     }
 
     @PostMapping("get")
-    public RestResponse get(String key) {
-        Setting setting = settingService.get(key);
-        return RestResponse.success(setting);
+    public RestResponseBody<SettingResponse> get(@Valid SettingGetRequest request) {
+        Setting setting = settingService.get(request.getKey());
+        return RestResponseBody.success(SettingAssembler.toResponse(setting));
     }
 
     @PostMapping("update")
     @RequiresPermissions("setting:update")
-    public RestResponse update(Setting setting) {
-        boolean updated = settingService.update(setting);
-        return RestResponse.success(updated);
+    public RestResponseBody<Boolean> update(@Valid @FormOrJson SettingUpdateRequest request) {
+        boolean updated = settingService.update(SettingAssembler.toEntity(request));
+        return RestResponseBody.success(updated);
     }
 
     @PostMapping("docker")
     @RequiresPermissions("setting:view")
-    public RestResponse docker() {
-        DockerConfig dockerConfig = settingService.getDockerConfig();
-        return RestResponse.success(dockerConfig);
+    public RestResponseBody<SettingDockerResponse> docker() {
+        return RestResponseBody.success(SettingAssembler.toDockerResponse(settingService.getDockerConfig()));
     }
 
     @PostMapping("check/docker")
     @RequiresPermissions("setting:view")
-    public RestResponse checkDocker(DockerConfig dockerConfig) {
-        ResponseResult result = settingService.checkDocker(dockerConfig);
-        return RestResponse.success(result);
+    public RestResponseBody<SettingCheckResponse> checkDocker(@Valid SettingDockerRequest request) {
+        return RestResponseBody.success(
+            SettingAssembler.toCheckResponse(
+                settingService.checkDocker(SettingAssembler.toDockerConfig(request))));
     }
 
     @PostMapping("update/docker")
     @RequiresPermissions("setting:update")
-    public RestResponse updateDocker(DockerConfig dockerConfig) {
-        boolean updated = settingService.updateDocker(dockerConfig);
-        return RestResponse.success(updated);
+    public RestResponseBody<Boolean> updateDocker(@Valid @FormOrJson SettingDockerRequest request) {
+        boolean updated =
+            settingService.updateDocker(SettingAssembler.toDockerConfig(request));
+        return RestResponseBody.success(updated);
     }
 
     @PostMapping("email")
     @RequiresPermissions("setting:view")
-    public RestResponse email() {
-        SenderEmail senderEmail = settingService.getSenderEmail();
-        return RestResponse.success(senderEmail);
+    public RestResponseBody<SettingEmailResponse> email() {
+        return RestResponseBody.success(SettingAssembler.toEmailResponse(settingService.getSenderEmail()));
     }
 
     @PostMapping("check/email")
     @RequiresPermissions("setting:view")
-    public RestResponse checkEmail(SenderEmail senderEmail) {
-        ResponseResult result = settingService.checkEmail(senderEmail);
-        return RestResponse.success(result);
+    public RestResponseBody<SettingCheckResponse> checkEmail(@Valid SettingEmailRequest request) {
+        return RestResponseBody.success(
+            SettingAssembler.toCheckResponse(
+                settingService.checkEmail(SettingAssembler.toSenderEmail(request))));
     }
 
     @PostMapping("update/email")
     @RequiresPermissions("setting:update")
-    public RestResponse updateEmail(SenderEmail senderEmail) {
-        boolean updated = settingService.updateEmail(senderEmail);
-        return RestResponse.success(updated);
+    public RestResponseBody<Boolean> updateEmail(@Valid @FormOrJson SettingEmailRequest request) {
+        boolean updated = settingService.updateEmail(SettingAssembler.toSenderEmail(request));
+        return RestResponseBody.success(updated);
     }
 
     @PostMapping("check/hadoop")
-    public RestResponse checkHadoop() throws IOException {
+    public RestResponseBody<Boolean> checkHadoop() throws IOException {
         HadoopUtils.hdfs().getStatus();
-        return RestResponse.success(true);
+        return RestResponseBody.success(true);
     }
 }

@@ -18,7 +18,6 @@
 package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.SpringUnitTestBase;
-import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.core.entity.FlinkApplication;
 import org.apache.streampark.console.core.entity.Resource;
 import org.apache.streampark.console.core.enums.EngineTypeEnum;
@@ -28,14 +27,12 @@ import org.apache.streampark.console.core.service.application.FlinkApplicationIn
 import org.apache.streampark.console.core.service.application.FlinkApplicationManageService;
 import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.service.UserService;
+import org.apache.streampark.console.system.service.result.UserUpdateResult;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Collections;
-import java.util.Map;
 
 /** org.apache.streampark.console.core.service.UserServiceTest. */
 @Transactional
@@ -51,7 +48,6 @@ class UserServiceTest extends SpringUnitTestBase {
     private ResourceService resourceService;
 
     @Test
-    @SuppressWarnings("unchecked")
     void testLockUser() throws Exception {
         User user = new User();
         user.setUsername("test");
@@ -62,16 +58,12 @@ class UserServiceTest extends SpringUnitTestBase {
         userService.createUser(user);
         // lock user
         user.setStatus(User.STATUS_LOCK);
-        Map<String, Object> data = (Map<String, Object>) userService
-            .updateUser(user)
-            .getOrDefault(RestResponse.DATA_KEY, Collections.emptyMap());
-        Assertions.assertNotEquals(true, data.get("needTransferResource"));
+        UserUpdateResult data = userService.updateUser(user);
+        Assertions.assertNotEquals(Boolean.TRUE, data == null ? null : data.isNeedTransferResource());
         // unlock user
         user.setStatus(User.STATUS_VALID);
-        Map<String, Object> data1 = (Map<String, Object>) userService
-            .updateUser(user)
-            .getOrDefault(RestResponse.DATA_KEY, Collections.emptyMap());
-        Assertions.assertNotEquals(true, data1.get("needTransferResource"));
+        UserUpdateResult data1 = userService.updateUser(user);
+        Assertions.assertNotEquals(Boolean.TRUE, data1 == null ? null : data1.isNeedTransferResource());
 
         Resource resource = new Resource();
         resource.setResourceName("test");
@@ -82,10 +74,8 @@ class UserServiceTest extends SpringUnitTestBase {
         resourceService.save(resource);
         // lock user when has resource
         user.setStatus(User.STATUS_LOCK);
-        Map<String, Object> data2 = (Map<String, Object>) userService
-            .updateUser(user)
-            .getOrDefault(RestResponse.DATA_KEY, Collections.emptyMap());
-        Assertions.assertEquals(true, data2.get("needTransferResource"));
+        UserUpdateResult data2 = userService.updateUser(user);
+        Assertions.assertEquals(Boolean.TRUE, data2.isNeedTransferResource());
     }
 
     @Test

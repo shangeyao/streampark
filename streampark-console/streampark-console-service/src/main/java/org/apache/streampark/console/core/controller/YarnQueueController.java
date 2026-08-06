@@ -18,8 +18,16 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.YarnQueueAssembler;
 import org.apache.streampark.console.core.entity.YarnQueue;
+import org.apache.streampark.console.core.request.yarn.YarnQueueCreateRequest;
+import org.apache.streampark.console.core.request.yarn.YarnQueueDeleteRequest;
+import org.apache.streampark.console.core.request.yarn.YarnQueueListQueryRequest;
+import org.apache.streampark.console.core.request.yarn.YarnQueueUpdateRequest;
+import org.apache.streampark.console.core.response.yarn.YarnQueueCheckResponse;
+import org.apache.streampark.console.core.response.yarn.YarnQueueResponse;
 import org.apache.streampark.console.core.service.YarnQueueService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -32,6 +40,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.validation.Valid;
+
 @Slf4j
 @Validated
 @RestController
@@ -41,41 +51,36 @@ public class YarnQueueController {
     @Autowired
     private YarnQueueService yarnQueueService;
 
-    /**
-     * * List the queues in the specified team by the paging & optional search hint message.
-     *
-     * @param restRequest page request information.
-     * @param yarnQueue optional fields used to search.
-     * @return RestResponse with IPage<{@link YarnQueue}> object.
-     */
     @PostMapping("list")
-    public RestResponse list(RestRequest restRequest, YarnQueue yarnQueue) {
-        IPage<YarnQueue> queuePage = yarnQueueService.getPage(yarnQueue, restRequest);
-        return RestResponse.success(queuePage);
+    public RestResponseBody<IPage<YarnQueueResponse>> list(RestRequest restRequest, YarnQueueListQueryRequest query) {
+        IPage<YarnQueue> queuePage =
+            yarnQueueService.getPage(YarnQueueAssembler.toEntity(query), restRequest);
+        return RestResponseBody.success(YarnQueueAssembler.toPageResponse(queuePage));
     }
 
     @PostMapping("check")
-    public RestResponse check(YarnQueue yarnQueue) {
-        return RestResponse.success(yarnQueueService.checkYarnQueue(yarnQueue));
+    public RestResponseBody<YarnQueueCheckResponse> check(YarnQueueCreateRequest request) {
+        return RestResponseBody.success(
+            YarnQueueAssembler.toCheckResponse(yarnQueueService.checkYarnQueue(YarnQueueAssembler.toEntity(request))));
     }
 
     @PostMapping("create")
     @RequiresPermissions("yarnQueue:create")
-    public RestResponse create(YarnQueue yarnQueue) {
-        return RestResponse.success(yarnQueueService.createYarnQueue(yarnQueue));
+    public RestResponseBody<Boolean> create(@Valid @FormOrJson YarnQueueCreateRequest request) {
+        return RestResponseBody.success(yarnQueueService.createYarnQueue(YarnQueueAssembler.toEntity(request)));
     }
 
     @PostMapping("update")
     @RequiresPermissions("yarnQueue:update")
-    public RestResponse update(YarnQueue yarnQueue) {
-        yarnQueueService.updateYarnQueue(yarnQueue);
-        return RestResponse.success();
+    public RestResponseBody<Void> update(@Valid @FormOrJson YarnQueueUpdateRequest request) {
+        yarnQueueService.updateYarnQueue(YarnQueueAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @PostMapping("delete")
     @RequiresPermissions("yarnQueue:delete")
-    public RestResponse delete(YarnQueue yarnQueue) {
-        yarnQueueService.remove(yarnQueue);
-        return RestResponse.success();
+    public RestResponseBody<Void> delete(@Valid @FormOrJson YarnQueueDeleteRequest request) {
+        yarnQueueService.remove(YarnQueueAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 }

@@ -17,10 +17,12 @@
 
 package org.apache.streampark.console.system.controller;
 
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.enums.LoginTypeEnum;
+import org.apache.streampark.console.system.assembler.UserAssembler;
 import org.apache.streampark.console.system.entity.User;
+import org.apache.streampark.console.system.response.user.UserSessionResponse;
 import org.apache.streampark.console.system.security.Authenticator;
 import org.apache.streampark.console.system.service.UserService;
 
@@ -67,7 +69,7 @@ public class SsoController {
 
     @GetMapping("token")
     @ResponseBody
-    public RestResponse token() throws Exception {
+    public RestResponseBody<UserSessionResponse> token() throws Exception {
         // Check SSO enable status
         ApiAlertException.throwIfTrue(
             !ssoEnable,
@@ -91,6 +93,6 @@ public class SsoController {
 
         User user = authenticator.authenticate(principal.getName(), null, LoginTypeEnum.SSO);
 
-        return userService.getLoginUserInfo(user);
+        return UserAssembler.toLoginResponse(userService.getLoginUserInfo(user));
     }
 }

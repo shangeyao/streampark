@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -119,10 +120,8 @@ public class OpenAPIComponent {
                 headerList.add(paramToSchema(header));
             }
 
-            List<OpenAPISchema.Schema> paramList = new ArrayList<>();
-            for (OpenAPI.Param param : openAPI.param()) {
-                paramList.add(paramToSchema(param));
-            }
+            List<OpenAPISchema.Schema> paramList =
+                RequestDtoSchemaBuilder.build(resolveRequestType(method), openAPI.param(), types);
 
             detail.setSchema(paramList);
             detail.setHeader(headerList);
@@ -139,6 +138,17 @@ public class OpenAPIComponent {
             detail.setMethod(methodURI.t1);
             schemas.put(openAPI.name(), detail);
         }
+    }
+
+    private Class<?> resolveRequestType(Method method) {
+        for (Parameter parameter : method.getParameters()) {
+            Class<?> type = parameter.getType();
+            if (type.isPrimitive() || type == String.class || type.getName().startsWith("java.")) {
+                continue;
+            }
+            return type;
+        }
+        return null;
     }
 
     private OpenAPISchema.Schema paramToSchema(OpenAPI.Param param) {

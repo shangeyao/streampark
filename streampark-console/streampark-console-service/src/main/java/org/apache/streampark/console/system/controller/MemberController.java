@@ -18,11 +18,23 @@
 package org.apache.streampark.console.system.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
 import org.apache.streampark.console.core.annotation.Permission;
+import org.apache.streampark.console.system.assembler.MemberAssembler;
+import org.apache.streampark.console.system.assembler.TeamAssembler;
+import org.apache.streampark.console.system.assembler.UserAssembler;
 import org.apache.streampark.console.system.entity.Member;
-import org.apache.streampark.console.system.entity.Team;
-import org.apache.streampark.console.system.entity.User;
+import org.apache.streampark.console.system.request.member.MemberCandidateUsersRequest;
+import org.apache.streampark.console.system.request.member.MemberCheckUserRequest;
+import org.apache.streampark.console.system.request.member.MemberCreateRequest;
+import org.apache.streampark.console.system.request.member.MemberDeleteRequest;
+import org.apache.streampark.console.system.request.member.MemberListQueryRequest;
+import org.apache.streampark.console.system.request.member.MemberTeamsRequest;
+import org.apache.streampark.console.system.request.member.MemberUpdateRequest;
+import org.apache.streampark.console.system.response.member.MemberResponse;
+import org.apache.streampark.console.system.response.team.TeamResponse;
+import org.apache.streampark.console.system.response.user.UserResponse;
 import org.apache.streampark.console.system.service.MemberService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -38,9 +50,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
 
-import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Validated
@@ -52,50 +63,52 @@ public class MemberController {
     private MemberService memberService;
 
     @PostMapping("list")
-    public RestResponse memberList(RestRequest restRequest, Member member) {
-        IPage<Member> userList = memberService.getPage(member, restRequest);
-        return RestResponse.success(userList);
+    public RestResponseBody<IPage<MemberResponse>> memberList(RestRequest restRequest, MemberListQueryRequest query) {
+        IPage<Member> userList = memberService.getPage(MemberAssembler.toEntity(query), restRequest);
+        return RestResponseBody.success(MemberAssembler.toPageResponse(userList));
     }
 
     @PostMapping("candidateUsers")
-    public RestResponse candidateUsers(Long teamId) {
-        List<User> userList = memberService.listUsersNotInTeam(teamId);
-        return RestResponse.success(userList);
+    public RestResponseBody<java.util.List<UserResponse>> candidateUsers(@Valid MemberCandidateUsersRequest request) {
+        return RestResponseBody.success(
+            UserAssembler.toResponseList(memberService.listUsersNotInTeam(request.getTeamId())));
     }
 
     @PostMapping("teams")
-    public RestResponse listTeams(Long userId) {
-        List<Team> teamList = memberService.listTeamsByUserId(userId);
-        return RestResponse.success(teamList);
+    public RestResponseBody<java.util.List<TeamResponse>> listTeams(@Valid MemberTeamsRequest request) {
+        return RestResponseBody.success(
+            memberService.listTeamsByUserId(request.getUserId()).stream()
+                .map(TeamAssembler::toResponse)
+                .collect(Collectors.toList()));
     }
 
     @PostMapping("check/user")
-    public RestResponse check(@NotNull(message = "{required}") Long teamId, String userName) {
-        Member result = this.memberService.getByTeamIdUserName(teamId, userName);
-        return RestResponse.success(result == null);
+    public RestResponseBody<Boolean> check(@Valid MemberCheckUserRequest request) {
+        Member result = this.memberService.getByTeamIdUserName(request.getTeamId(), request.getUserName());
+        return RestResponseBody.success(result == null);
     }
 
     @PostMapping("post")
-    @Permission(team = "#member.teamId")
+    @Permission(team = "#request.teamId")
     @RequiresPermissions("member:add")
-    public RestResponse create(@Valid Member member) {
-        this.memberService.createMember(member);
-        return RestResponse.success();
+    public RestResponseBody<Void> create(@Valid @FormOrJson MemberCreateRequest request) {
+        this.memberService.createMember(MemberAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @DeleteMapping("delete")
-    @Permission(team = "#member.teamId")
+    @Permission(team = "#request.teamId")
     @RequiresPermissions("member:delete")
-    public RestResponse delete(Member member) {
-        this.memberService.remove(member.getId());
-        return RestResponse.success();
+    public RestResponseBody<Void> delete(@Valid @FormOrJson MemberDeleteRequest request) {
+        this.memberService.remove(request.getId());
+        return RestResponseBody.success();
     }
 
     @PutMapping("update")
-    @Permission(team = "#member.teamId")
+    @Permission(team = "#request.teamId")
     @RequiresPermissions("member:update")
-    public RestResponse update(Member member) {
-        this.memberService.updateMember(member);
-        return RestResponse.success();
+    public RestResponseBody<Void> update(@Valid @FormOrJson MemberUpdateRequest request) {
+        this.memberService.updateMember(MemberAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 }

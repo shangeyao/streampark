@@ -20,7 +20,6 @@ package org.apache.streampark.console.system.service.impl;
 import org.apache.streampark.common.util.AssertUtils;
 import org.apache.streampark.common.util.DateUtils;
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
 import org.apache.streampark.console.base.util.ShaHashUtils;
@@ -41,6 +40,8 @@ import org.apache.streampark.console.system.service.MenuService;
 import org.apache.streampark.console.system.service.RoleService;
 import org.apache.streampark.console.system.service.TeamService;
 import org.apache.streampark.console.system.service.UserService;
+import org.apache.streampark.console.system.service.result.UserLoginResult;
+import org.apache.streampark.console.system.service.result.UserUpdateResult;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -134,15 +135,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public RestResponse updateUser(User user) {
+    public UserUpdateResult updateUser(User user) {
         User existsUser = getById(user.getUserId());
         user.setLoginType(null);
         user.setPassword(null);
+        UserUpdateResult result = new UserUpdateResult();
         if (needTransferResource(existsUser, user)) {
-            return RestResponse.success(Collections.singletonMap("needTransferResource", true));
+            result.setNeedTransferResource(true);
+            return result;
         }
         updateById(user);
-        return RestResponse.success();
+        return result;
     }
 
     private boolean needTransferResource(User existsUser, User user) {
@@ -241,13 +244,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public RestResponse getLoginUserInfo(User user) throws Exception {
+    public UserLoginResult getLoginUserInfo(User user) throws Exception {
+        UserLoginResult result = new UserLoginResult();
         if (user == null) {
-            return RestResponse.success().put(RestResponse.CODE_KEY, 0);
+            result.setLoginCode(0);
+            return result;
         }
 
         if (User.STATUS_LOCK.equals(user.getStatus())) {
-            return RestResponse.success().put(RestResponse.CODE_KEY, 1);
+            result.setLoginCode(1);
+            return result;
         }
 
         this.updateLoginTime(user.getUsername());
@@ -256,13 +262,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         LocalDateTime expireTime = LocalDateTime.now().plusSeconds(JWTUtil.getTTLOfSecond());
         String ttl = DateUtils.formatFullTime(expireTime);
 
-        // generate UserInfo
         String userId = RandomStringUtils.randomAlphanumeric(20);
         user.setId(userId);
         JWTToken jwtToken = new JWTToken(token, ttl);
-        Map<String, Object> userInfo = generateFrontendUserInfo(user, jwtToken);
-
-        return RestResponse.success(userInfo);
+        result.setUserInfo(generateFrontendUserInfo(user, jwtToken));
+        return result;
     }
 
     @Override

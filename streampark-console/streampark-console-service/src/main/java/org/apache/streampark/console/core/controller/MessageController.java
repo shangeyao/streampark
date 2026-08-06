@@ -18,9 +18,14 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.MessageAssembler;
 import org.apache.streampark.console.core.entity.Message;
 import org.apache.streampark.console.core.enums.NoticeTypeEnum;
+import org.apache.streampark.console.core.request.message.MessageDeleteRequest;
+import org.apache.streampark.console.core.request.message.MessageNoticeRequest;
+import org.apache.streampark.console.core.response.message.MessageResponse;
 import org.apache.streampark.console.core.service.MessageService;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -30,6 +35,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
 
 @Slf4j
 @Validated
@@ -41,14 +48,15 @@ public class MessageController {
     private MessageService messageService;
 
     @PostMapping("notice")
-    public RestResponse notice(Integer type, RestRequest request) {
-        NoticeTypeEnum noticeTypeEnum = NoticeTypeEnum.of(type);
-        IPage<Message> pages = messageService.getUnReadPage(noticeTypeEnum, request);
-        return RestResponse.success(pages);
+    public RestResponseBody<IPage<MessageResponse>> notice(@Valid MessageNoticeRequest request,
+                                                           RestRequest restRequest) {
+        NoticeTypeEnum noticeTypeEnum = NoticeTypeEnum.of(request.getType());
+        IPage<Message> pages = messageService.getUnReadPage(noticeTypeEnum, restRequest);
+        return RestResponseBody.success(MessageAssembler.toPageResponse(pages));
     }
 
     @PostMapping("delete")
-    public RestResponse delete(Long id) {
-        return RestResponse.success(messageService.removeById(id));
+    public RestResponseBody<Boolean> delete(@Valid @FormOrJson MessageDeleteRequest request) {
+        return RestResponseBody.success(messageService.removeById(request.getId()));
     }
 }

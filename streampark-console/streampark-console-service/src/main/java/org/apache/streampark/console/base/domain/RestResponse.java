@@ -23,6 +23,14 @@ import javax.validation.constraints.NotNull;
 
 import java.util.HashMap;
 
+/**
+ * Legacy REST envelope based on a {@link HashMap}. Prefer {@link RestResponseBody} at controller
+ * boundaries; this type remains for internal transitions and compatibility helpers.
+ *
+ * @deprecated Use {@link RestResponseBody} for controller return types.
+ */
+@Deprecated(since = "3.0.0")
+@SuppressWarnings("java:S1133")
 public class RestResponse extends HashMap<String, Object> {
 
     public static final String STATUS_SUCCESS = "success";
@@ -38,6 +46,25 @@ public class RestResponse extends HashMap<String, Object> {
         RestResponse resp = success();
         resp.put(DATA_KEY, data);
         return resp;
+    }
+
+    /**
+     * Returns the {@code data} payload cast to the requested type.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T getDataAs(Class<T> type) {
+        Object data = get(DATA_KEY);
+        if (data == null) {
+            return null;
+        }
+        return type.cast(data);
+    }
+
+    /**
+     * Wraps this response in a typed {@link RestResponseBody}.
+     */
+    public <T> RestResponseBody<T> asBody() {
+        return RestResponseBody.from(this);
     }
 
     public static RestResponse success() {

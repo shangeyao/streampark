@@ -18,10 +18,10 @@
 package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.core.entity.FlinkApplication;
 import org.apache.streampark.console.core.entity.Project;
 import org.apache.streampark.console.core.enums.GitAuthorizedErrorEnum;
+import org.apache.streampark.console.core.service.result.ProjectBuildLogResult;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -35,9 +35,9 @@ public interface ProjectService extends IService<Project> {
      * Create a new instance.
      *
      * @param project Project to be created
-     * @return RestResponse
+     * @return whether the create is successful
      */
-    RestResponse create(Project project);
+    boolean create(Project project);
 
     boolean checkExists(Project project);
 
@@ -96,9 +96,9 @@ public interface ProjectService extends IService<Project> {
      *
      * @param id Project id
      * @param startOffset startOffset
-     * @return RestResponse
+     * @return build log content with optional offset/readFinished metadata
      */
-    RestResponse getBuildLog(Long id, Long startOffset);
+    ProjectBuildLogResult getBuildLog(Long id, Long startOffset);
 
     /**
      * List all modules of the specified project

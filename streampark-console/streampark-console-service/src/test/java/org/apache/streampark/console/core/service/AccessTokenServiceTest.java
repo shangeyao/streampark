@@ -19,13 +19,13 @@ package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.SpringUnitTestBase;
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.system.authentication.JWTToken;
 import org.apache.streampark.console.system.authentication.JWTUtil;
 import org.apache.streampark.console.system.entity.AccessToken;
 import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.service.AccessTokenService;
 import org.apache.streampark.console.system.service.UserService;
+import org.apache.streampark.console.system.service.result.AccessTokenCreateResult;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.Assertions;
@@ -43,12 +43,13 @@ public class AccessTokenServiceTest extends SpringUnitTestBase {
     @Test
     void testCrudToken() throws Exception {
         Long mockUserId = 100000L;
-        RestResponse restResponse = accessTokenService.create(mockUserId, "");
-        Assertions.assertNotNull(restResponse);
-        Assertions.assertInstanceOf(AccessToken.class, restResponse.get("data"));
+        AccessTokenCreateResult createResult = accessTokenService.create(mockUserId, "");
+        Assertions.assertNotNull(createResult);
+        Assertions.assertTrue(createResult.isCreated());
+        Assertions.assertInstanceOf(AccessToken.class, createResult.getAccessToken());
 
         // verify
-        AccessToken accessToken = (AccessToken) restResponse.get("data");
+        AccessToken accessToken = createResult.getAccessToken();
         LOG.info(accessToken.getToken());
         JWTToken jwtToken = new JWTToken(JWTUtil.decrypt(accessToken.getToken()));
         LOG.info(jwtToken.getToken());
@@ -71,9 +72,7 @@ public class AccessTokenServiceTest extends SpringUnitTestBase {
 
         // toggle
         Long tokenId = accessToken.getId();
-        RestResponse toggleTokenResp = accessTokenService.toggle(tokenId);
-        Assertions.assertNotNull(toggleTokenResp);
-        Assertions.assertTrue((Boolean) toggleTokenResp.get("data"));
+        Assertions.assertTrue(accessTokenService.toggle(tokenId));
 
         // get
         AccessToken afterToggle = accessTokenService.getByUserId(mockUserId);

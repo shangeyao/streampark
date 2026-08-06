@@ -17,9 +17,8 @@
 
 package org.apache.streampark.console.system.service.impl;
 
-import org.apache.streampark.console.base.domain.ResponseCode;
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
 import org.apache.streampark.console.core.enums.AuthenticationType;
 import org.apache.streampark.console.system.authentication.JWTUtil;
@@ -28,6 +27,7 @@ import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.mapper.AccessTokenMapper;
 import org.apache.streampark.console.system.service.AccessTokenService;
 import org.apache.streampark.console.system.service.UserService;
+import org.apache.streampark.console.system.service.result.AccessTokenCreateResult;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -51,16 +51,20 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
     private UserService userService;
 
     @Override
-    public RestResponse create(Long userId, String description) throws Exception {
+    public AccessTokenCreateResult create(Long userId, String description) throws Exception {
+        AccessTokenCreateResult result = new AccessTokenCreateResult();
         User user = userService.getById(userId);
         if (user == null) {
-            return RestResponse.success().put("code", 0).message("user not available");
+            result.setCreated(false);
+            result.setMessage("user not available");
+            return result;
         }
 
         AccessToken existAccessToken = baseMapper.selectByUserId(user.getUserId());
         if (existAccessToken != null) {
-            return RestResponse.success().put("code", 0)
-                .message(String.format("user %s already has a token", user.getUsername()));
+            result.setCreated(false);
+            result.setMessage(String.format("user %s already has a token", user.getUsername()));
+            return result;
         }
 
         String token = JWTUtil.sign(user, AuthenticationType.OPENAPI, Long.MAX_VALUE);
@@ -68,11 +72,12 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
         accessToken.setToken(token);
         accessToken.setUserId(user.getUserId());
         accessToken.setDescription(description);
-
         accessToken.setStatus(AccessToken.STATUS_ENABLE);
 
         this.save(accessToken);
-        return RestResponse.success().data(accessToken);
+        result.setCreated(true);
+        result.setAccessToken(accessToken);
+        return result;
     }
 
     @Override
@@ -85,17 +90,12 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
     }
 
     @Override
-    public RestResponse toggle(Long tokenId) {
+    public boolean toggle(Long tokenId) {
         AccessToken tokenInfo = baseMapper.selectById(tokenId);
-        if (tokenInfo == null) {
-            return RestResponse.fail(ResponseCode.CODE_FAIL_ALERT, "accessToken could not be found!");
-        }
-
-        if (User.STATUS_LOCK.equals(tokenInfo.getUserStatus())) {
-            return RestResponse.fail(
-                ResponseCode.CODE_FAIL_ALERT,
-                "user status is locked, could not operate this accessToken!");
-        }
+        ApiAlertException.throwIfNull(tokenInfo, "accessToken could not be found!");
+        ApiAlertException.throwIfTrue(
+            User.STATUS_LOCK.equals(tokenInfo.getUserStatus()),
+            "user status is locked, could not operate this accessToken!");
 
         Integer status = tokenInfo.getStatus().equals(AccessToken.STATUS_ENABLE)
             ? AccessToken.STATUS_DISABLE
@@ -104,7 +104,7 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
         AccessToken updateObj = new AccessToken();
         updateObj.setStatus(status);
         updateObj.setId(tokenId);
-        return RestResponse.success(this.updateById(updateObj));
+        return this.updateById(updateObj);
     }
 
     @Override

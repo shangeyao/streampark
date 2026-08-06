@@ -19,9 +19,15 @@ package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.common.util.HadoopConfigUtils;
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
-import org.apache.streampark.console.core.entity.FlinkApplication;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.FlinkConfAssembler;
 import org.apache.streampark.console.core.entity.FlinkApplicationConfig;
+import org.apache.streampark.console.core.request.common.IdRequest;
+import org.apache.streampark.console.core.request.flink.FlinkAppIdRequest;
+import org.apache.streampark.console.core.request.flink.FlinkConfListQueryRequest;
+import org.apache.streampark.console.core.response.flink.FlinkConfHadoopResponse;
+import org.apache.streampark.console.core.response.flink.FlinkConfResponse;
 import org.apache.streampark.console.core.service.application.FlinkApplicationConfigService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -34,6 +40,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
 
 import java.util.List;
 import java.util.Map;
@@ -48,42 +56,44 @@ public class FlinkConfigController {
     private FlinkApplicationConfigService applicationConfigService;
 
     @PostMapping("get")
-    public RestResponse get(Long id) {
-        FlinkApplicationConfig config = applicationConfigService.get(id);
-        return RestResponse.success(config);
+    public RestResponseBody<FlinkConfResponse> get(@Valid IdRequest request) {
+        FlinkApplicationConfig config = applicationConfigService.get(request.getId());
+        return RestResponseBody.success(FlinkConfAssembler.toResponse(config));
     }
 
     @PostMapping("template")
-    public RestResponse template() {
+    public RestResponseBody<String> template() {
         String config = applicationConfigService.readTemplate();
-        return RestResponse.success(config);
+        return RestResponseBody.success(config);
     }
 
     @PostMapping("list")
-    public RestResponse list(FlinkApplicationConfig config, RestRequest request) {
+    public RestResponseBody<IPage<FlinkConfResponse>> list(FlinkConfListQueryRequest query, RestRequest request) {
+        FlinkApplicationConfig config = FlinkConfAssembler.toEntity(query);
         IPage<FlinkApplicationConfig> page = applicationConfigService.getPage(config, request);
-        return RestResponse.success(page);
+        return RestResponseBody.success(FlinkConfAssembler.toPageResponse(page));
     }
 
     @PostMapping("history")
-    public RestResponse history(FlinkApplication application) {
-        List<FlinkApplicationConfig> history = applicationConfigService.list(application.getId());
-        return RestResponse.success(history);
+    public RestResponseBody<List<FlinkConfResponse>> history(@Valid FlinkAppIdRequest request) {
+        List<FlinkApplicationConfig> history =
+            applicationConfigService.list(FlinkConfAssembler.toAppId(request));
+        return RestResponseBody.success(FlinkConfAssembler.toListResponse(history));
     }
 
     @PostMapping("delete")
     @RequiresPermissions("conf:delete")
-    public RestResponse delete(Long id) {
-        Boolean deleted = applicationConfigService.removeById(id);
-        return RestResponse.success(deleted);
+    public RestResponseBody<Boolean> delete(@Valid @FormOrJson IdRequest request) {
+        Boolean deleted = applicationConfigService.removeById(request.getId());
+        return RestResponseBody.success(deleted);
     }
 
     @PostMapping("sys_hadoop_conf")
     @RequiresPermissions("app:create")
-    public RestResponse getSystemHadoopConfig() {
+    public RestResponseBody<FlinkConfHadoopResponse> getSystemHadoopConfig() {
         Map<String, Map<String, String>> result = ImmutableMap.of(
             "hadoop", HadoopConfigUtils.readSystemHadoopConf(),
             "hive", HadoopConfigUtils.readSystemHiveConf());
-        return RestResponse.success(result);
+        return RestResponseBody.success(FlinkConfAssembler.toHadoopResponse(result));
     }
 }

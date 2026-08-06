@@ -18,12 +18,21 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.exception.InternalException;
+import org.apache.streampark.console.base.web.FormOrJson;
 import org.apache.streampark.console.core.annotation.Permission;
-import org.apache.streampark.console.core.entity.FlinkApplication;
+import org.apache.streampark.console.core.assembler.SparkSqlAssembler;
 import org.apache.streampark.console.core.entity.SparkSql;
+import org.apache.streampark.console.core.request.spark.SparkSqlCompleteRequest;
+import org.apache.streampark.console.core.request.spark.SparkSqlDeleteRequest;
+import org.apache.streampark.console.core.request.spark.SparkSqlGetRequest;
+import org.apache.streampark.console.core.request.spark.SparkSqlHistoryRequest;
+import org.apache.streampark.console.core.request.spark.SparkSqlListQueryRequest;
+import org.apache.streampark.console.core.request.spark.SparkSqlVerifyRequest;
+import org.apache.streampark.console.core.response.spark.SparkSqlResponse;
+import org.apache.streampark.console.core.response.sql.SqlCompleteResponse;
 import org.apache.streampark.console.core.service.SparkSqlService;
 import org.apache.streampark.console.core.service.SqlCompleteService;
 import org.apache.streampark.console.core.service.VariableService;
@@ -39,7 +48,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.constraints.NotNull;
+import javax.validation.Valid;
 
 import java.util.List;
 
@@ -63,69 +72,74 @@ public class SparkSqlController {
     private SqlCompleteService sqlComplete;
 
     @PostMapping("verify")
-    public RestResponse verify(String sql, Long versionId, Long teamId) {
-        sql = variableService.replaceVariable(teamId, sql);
-        SparkSqlValidationResult sparkSqlValidationResult = sparkSqlService.verifySql(sql, versionId);
+    public RestResponseBody<Boolean> verify(@Valid SparkSqlVerifyRequest request) {
+        String sql = variableService.replaceVariable(request.getTeamId(), request.getSql());
+        SparkSqlValidationResult sparkSqlValidationResult = sparkSqlService.verifySql(sql, request.getVersionId());
         if (!sparkSqlValidationResult.success()) {
-            // record error type, such as error sql, reason and error start/end line
             String exception = sparkSqlValidationResult.exception();
-            RestResponse response = RestResponse.success()
-                .data(false)
-                .message(exception)
-                .put(TYPE, sparkSqlValidationResult.failedType().getFailedType())
-                .put(START, sparkSqlValidationResult.lineStart())
-                .put(END, sparkSqlValidationResult.lineEnd());
-
+            RestResponseBody<Boolean> response = RestResponseBody.success(false).message(exception);
+            response.extra(TYPE, sparkSqlValidationResult.failedType().getFailedType());
+            response.extra(START, sparkSqlValidationResult.lineStart());
+            response.extra(END, sparkSqlValidationResult.lineEnd());
             if (sparkSqlValidationResult.errorLine() > 0) {
-                response
-                    .put(START, sparkSqlValidationResult.errorLine())
-                    .put(END, sparkSqlValidationResult.errorLine() + 1);
+                response.extra(START, sparkSqlValidationResult.errorLine());
+                response.extra(END, sparkSqlValidationResult.errorLine() + 1);
             }
             return response;
         }
-        return RestResponse.success(true);
+        return RestResponseBody.success(true);
     }
 
     @PostMapping("list")
-    @Permission(app = "#sparkSql.appId", team = "#sparkSql.teamId")
-    public RestResponse list(SparkSql sparkSql, RestRequest request) {
-        IPage<SparkSql> page = sparkSqlService.getPage(sparkSql.getAppId(), request);
-        return RestResponse.success(page);
+    @Permission(app = "#request.appId", team = "#request.teamId")
+    public RestResponseBody<IPage<SparkSqlResponse>> list(@Valid SparkSqlListQueryRequest request,
+                                                          RestRequest restRequest) {
+        IPage<SparkSql> page = sparkSqlService.getPage(request.getAppId(), restRequest);
+        return RestResponseBody.success(SparkSqlAssembler.toPageResponse(page));
     }
 
     @PostMapping("delete")
     @RequiresPermissions("sql:delete")
-    @Permission(app = "#sparkSql.appId", team = "#sparkSql.teamId")
-    public RestResponse delete(SparkSql sparkSql) {
+    @Permission(app = "#request.appId", team = "#request.teamId")
+    public RestResponseBody<Boolean> delete(@Valid @FormOrJson SparkSqlDeleteRequest request) {
+        SparkSql sparkSql = SparkSqlAssembler.toDeleteEntity(request);
+        ApiAlertException.throwIfNull(sparkSql, "Spark SQL delete request cannot be null.");
         Boolean deleted = sparkSqlService.removeById(sparkSql.getSql());
-        return RestResponse.success(deleted);
+        return RestResponseBody.success(deleted);
     }
 
+    /** {@code data} is {@link SparkSqlResponse} for one id, or {@link SparkSqlResponse}{@code []} for two ids (legacy compare). */
+    @SuppressWarnings("java:S1452")
     @PostMapping("get")
-    @Permission(app = "#appId", team = "#teamId")
-    public RestResponse get(Long appId, Long teamId, String id) throws InternalException {
+    @Permission(app = "#request.appId", team = "#request.teamId")
+    public RestResponseBody<?> get(@Valid SparkSqlGetRequest request) throws InternalException {
         ApiAlertException.throwIfTrue(
-            appId == null || teamId == null, "Permission denied, appId and teamId cannot be null");
-        String[] array = id.split(",");
+            request.getAppId() == null || request.getTeamId() == null,
+            "Permission denied, appId and teamId cannot be null");
+        String[] array = request.getId().split(",");
         SparkSql sparkSql1 = sparkSqlService.getById(array[0]);
+        ApiAlertException.throwIfNull(sparkSql1, "Spark SQL not found.");
         sparkSql1.base64Encode();
         if (array.length == 1) {
-            return RestResponse.success(sparkSql1);
+            return RestResponseBody.success(SparkSqlAssembler.toResponse(sparkSql1));
         }
         SparkSql sparkSql2 = sparkSqlService.getById(array[1]);
+        ApiAlertException.throwIfNull(sparkSql2, "Spark SQL not found.");
         sparkSql2.base64Encode();
-        return RestResponse.success(new SparkSql[]{sparkSql1, sparkSql2});
+        return RestResponseBody.success(SparkSqlAssembler.toResponseArray(new SparkSql[]{sparkSql1, sparkSql2}));
     }
 
     @PostMapping("history")
-    @Permission(app = "#app.id", team = "#app.teamId")
-    public RestResponse history(FlinkApplication app) {
-        List<SparkSql> sqlList = sparkSqlService.listSparkSqlHistory(app.getId());
-        return RestResponse.success(sqlList);
+    @Permission(app = "#request.id", team = "#request.teamId")
+    public RestResponseBody<List<SparkSqlResponse>> history(@Valid SparkSqlHistoryRequest request) {
+        List<SparkSql> sqlList = sparkSqlService.listSparkSqlHistory(request.getId());
+        return RestResponseBody.success(SparkSqlAssembler.toListResponse(sqlList));
     }
 
     @PostMapping("sqlComplete")
-    public RestResponse getSqlComplete(@NotNull(message = "{required}") String sql) {
-        return RestResponse.success().put("word", sqlComplete.getComplete(sql));
+    public RestResponseBody<SqlCompleteResponse> getSqlComplete(@Valid SparkSqlCompleteRequest request) {
+        SqlCompleteResponse response = new SqlCompleteResponse();
+        response.setWord(sqlComplete.getComplete(request.getSql()));
+        return RestResponseBody.success(response);
     }
 }

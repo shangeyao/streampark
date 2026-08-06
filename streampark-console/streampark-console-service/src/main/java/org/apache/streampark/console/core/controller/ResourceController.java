@@ -18,9 +18,18 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
-import org.apache.streampark.console.base.domain.RestResponse;
-import org.apache.streampark.console.core.bean.UploadResponse;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.ResourceAssembler;
 import org.apache.streampark.console.core.entity.Resource;
+import org.apache.streampark.console.core.request.common.TeamIdRequest;
+import org.apache.streampark.console.core.request.common.TeamScopedIdRequest;
+import org.apache.streampark.console.core.request.resource.ResourceCreateRequest;
+import org.apache.streampark.console.core.request.resource.ResourcePageQueryRequest;
+import org.apache.streampark.console.core.request.resource.ResourceUpdateRequest;
+import org.apache.streampark.console.core.response.resource.ResourceCheckResponse;
+import org.apache.streampark.console.core.response.resource.ResourceResponse;
+import org.apache.streampark.console.core.response.resource.ResourceUploadResponse;
 import org.apache.streampark.console.core.service.ResourceService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -33,12 +42,12 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
 
+import java.io.IOException;
 import java.util.List;
 
 @Slf4j
@@ -52,53 +61,54 @@ public class ResourceController {
 
     @PostMapping("add")
     @RequiresPermissions("resource:add")
-    public RestResponse addResource(@Valid Resource resource) throws Exception {
-        this.resourceService.addResource(resource);
-        return RestResponse.success();
+    public RestResponseBody<Void> addResource(@Valid @FormOrJson ResourceCreateRequest request) throws Exception {
+        this.resourceService.addResource(ResourceAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @PostMapping("check")
-    public RestResponse checkResource(@Valid Resource resource) throws Exception {
-        return this.resourceService.checkResource(resource);
+    public RestResponseBody<ResourceCheckResponse> checkResource(@Valid ResourceCreateRequest request) throws Exception {
+        return RestResponseBody.success(
+            ResourceAssembler.toCheckResponse(resourceService.checkResource(ResourceAssembler.toEntity(request))));
     }
 
     @PostMapping("page")
-    public RestResponse page(RestRequest restRequest, Resource resource) {
-        IPage<Resource> page = resourceService.getPage(resource, restRequest);
-        return RestResponse.success(page);
+    public RestResponseBody<IPage<ResourceResponse>> page(RestRequest restRequest, ResourcePageQueryRequest query) {
+        IPage<Resource> page =
+            resourceService.getPage(ResourceAssembler.toEntity(query), restRequest);
+        return RestResponseBody.success(ResourceAssembler.toPageResponse(page));
     }
 
     @PutMapping("update")
     @RequiresPermissions("resource:update")
-    public RestResponse updateResource(@Valid Resource resource) {
-        resourceService.updateResource(resource);
-        return RestResponse.success();
+    public RestResponseBody<Void> updateResource(@Valid @FormOrJson ResourceUpdateRequest request) {
+        resourceService.updateResource(ResourceAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @DeleteMapping("delete")
     @RequiresPermissions("resource:delete")
-    public RestResponse deleteResource(@Valid Resource resource) {
-        this.resourceService.remove(resource.getId());
-        return RestResponse.success();
+    public RestResponseBody<Void> deleteResource(@Valid @FormOrJson TeamScopedIdRequest request) {
+        this.resourceService.remove(request.getId());
+        return RestResponseBody.success();
     }
 
     @PostMapping("list")
-    public RestResponse listResource(@RequestParam Long teamId) {
-        List<Resource> resourceList = resourceService.listByTeamId(teamId);
-        return RestResponse.success(resourceList);
+    public RestResponseBody<List<ResourceResponse>> listResource(TeamIdRequest request) {
+        List<Resource> resourceList = resourceService.listByTeamId(request.getTeamId());
+        return RestResponseBody.success(ResourceAssembler.toListResponse(resourceList));
     }
 
     @PostMapping("upload")
     @RequiresPermissions("resource:add")
-    public RestResponse upload(MultipartFile file) throws Exception {
-        UploadResponse uploadPath = resourceService.upload(file);
-        return RestResponse.success(uploadPath);
+    public RestResponseBody<ResourceUploadResponse> upload(MultipartFile file) throws IOException {
+        return RestResponseBody.success(ResourceAssembler.toUploadResponse(resourceService.upload(file)));
     }
 
     @PostMapping("upload_jars")
-    public RestResponse listUploadJars() {
+    public RestResponseBody<List<String>> listUploadJars() {
         List<String> jars = resourceService.listHistoryUploadJars();
-        return RestResponse.success(jars);
+        return RestResponseBody.success(jars);
     }
 
 }

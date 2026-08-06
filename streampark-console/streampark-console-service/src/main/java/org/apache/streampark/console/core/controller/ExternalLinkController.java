@@ -18,8 +18,14 @@
 package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.common.util.AssertUtils;
-import org.apache.streampark.console.base.domain.RestResponse;
-import org.apache.streampark.console.core.entity.ExternalLink;
+import org.apache.streampark.console.base.domain.RestResponseBody;
+import org.apache.streampark.console.base.web.FormOrJson;
+import org.apache.streampark.console.core.assembler.ExternalLinkAssembler;
+import org.apache.streampark.console.core.request.common.IdRequest;
+import org.apache.streampark.console.core.request.externallink.ExternalLinkCreateRequest;
+import org.apache.streampark.console.core.request.externallink.ExternalLinkRenderRequest;
+import org.apache.streampark.console.core.request.externallink.ExternalLinkUpdateRequest;
+import org.apache.streampark.console.core.response.externallink.ExternalLinkResponse;
 import org.apache.streampark.console.core.service.ExternalLinkService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -30,11 +36,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -49,38 +53,35 @@ public class ExternalLinkController {
 
     @PostMapping("/list")
     @RequiresPermissions("externalLink:view")
-    public RestResponse list() {
-        List<ExternalLink> externalLink = externalLinkService.list();
-        return RestResponse.success(externalLink);
+    public RestResponseBody<List<ExternalLinkResponse>> list() {
+        return RestResponseBody.success(ExternalLinkAssembler.toListResponse(externalLinkService.list()));
     }
 
     @PostMapping("/render")
-    public RestResponse render(
-                               @NotNull(message = "The flink app id cannot be null") @RequestParam("appId") Long appId) {
-        List<ExternalLink> renderedExternalLink = externalLinkService.render(appId);
-        return RestResponse.success(renderedExternalLink);
+    public RestResponseBody<List<ExternalLinkResponse>> render(@Valid ExternalLinkRenderRequest request) {
+        return RestResponseBody.success(
+            ExternalLinkAssembler.toListResponse(externalLinkService.render(request.getAppId())));
     }
 
     @PostMapping("/create")
     @RequiresPermissions("externalLink:create")
-    public RestResponse create(@Valid ExternalLink externalLink) {
-        externalLinkService.create(externalLink);
-        return RestResponse.success();
+    public RestResponseBody<Void> create(@Valid @FormOrJson ExternalLinkCreateRequest request) {
+        externalLinkService.create(ExternalLinkAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @PostMapping("/update")
     @RequiresPermissions("externalLink:update")
-    public RestResponse update(@Valid ExternalLink externalLink) {
-        AssertUtils.notNull(externalLink.getId(), "The link id cannot be null");
-        externalLinkService.update(externalLink);
-        return RestResponse.success();
+    public RestResponseBody<Void> update(@Valid @FormOrJson ExternalLinkUpdateRequest request) {
+        AssertUtils.notNull(request.getId(), "The link id cannot be null");
+        externalLinkService.update(ExternalLinkAssembler.toEntity(request));
+        return RestResponseBody.success();
     }
 
     @DeleteMapping("/delete")
     @RequiresPermissions("externalLink:delete")
-    public RestResponse delete(
-                               @NotNull(message = "The link id cannot be null") @RequestParam("id") Long id) {
-        externalLinkService.removeById(id);
-        return RestResponse.success();
+    public RestResponseBody<Void> delete(@Valid @FormOrJson IdRequest request) {
+        externalLinkService.removeById(request.getId());
+        return RestResponseBody.success();
     }
 }
